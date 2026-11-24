@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#15110e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Whispers">
+<title>War of Whispers Scorer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2315110e'/%3E%3Cpath d='M32 10c-9 9-14 17-14 25a14 14 0 0 0 28 0c0-8-5-16-14-25z' fill='none' stroke='%23c9a24a' stroke-width='4'/%3E%3Ccircle cx='32' cy='37' r='5' fill='%23c9a24a'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #15110e;
+    --panel: #1f1a16;
+    --panel-2: #27211c;
+    --line: #3b322a;
+    --text: #efe6d6;
+    --muted: #a8998a;
+    --gold: #c9a24a;
+    --gold-soft: rgba(201, 162, 74, 0.16);
+    --neg: #d77b6c;
+    --ok: #9cc48a;
+    --radius: 12px;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.4 var(--sans);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+
+  /* Sticky header with live scores */
+  .top {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(21, 17, 14, 0.94);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+    padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+  }
+  .top-inner { max-width: 980px; margin: 0 auto; }
+  h1 {
+    font: 600 20px/1.1 var(--serif);
+    letter-spacing: 0.02em; margin: 0 0 8px;
+  }
+  h1 span { color: var(--gold); font-style: italic; font-weight: 400; }
+  .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: 0 0 auto;
+    display: flex; align-items: baseline; gap: 6px;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 999px; padding: 4px 11px; font-size: 14px;
+    max-width: 46vw;
+  }
+  .chip .cn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  .chip .cs { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .chip.lead { border-color: var(--gold); background: var(--gold-soft); }
+  .chip.lead .cn { color: var(--text); }
+  .chip.lead::before { content: "♛"; color: var(--gold); font-size: 13px; }
+
+  main { max-width: 980px; margin: 0 auto; padding: 14px 12px 40px; }
+  .panel, .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  h2 {
+    font: 600 17px/1.2 var(--serif); margin: 0 0 10px;
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  }
+  h2 small { font: 400 13px var(--sans); color: var(--muted); }
+
+  /* Segmented control (player count) */
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button {
+    background: transparent; border: 0; min-width: 48px; height: 40px;
+    border-right: 1px solid var(--line); font-weight: 600;
+  }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--gold); color: #1a1409; }
+  .setup-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .setup-row h2 { margin: 0; }
+
+  /* Cities */
+  .city-row {
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px;
+    padding: 6px 0; border-top: 1px solid var(--line);
+  }
+  .city-row:first-of-type { border-top: 0; }
+  .ename-input {
+    background: transparent; border: 1px solid transparent; border-radius: 8px;
+    padding: 6px 8px; margin-left: -8px; width: 100%; font-weight: 600;
+  }
+  .ename-input:hover { border-color: var(--line); }
+  .ename-input:focus { outline: none; border-color: var(--gold); background: var(--panel-2); }
+  .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+
+  .stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .stepper button {
+    width: 40px; height: 40px; border: 0; background: var(--panel-2);
+    font-size: 20px; line-height: 1;
+  }
+  .stepper button:active { background: var(--line); }
+  .stepper input {
+    width: 48px; height: 40px; border: 0; text-align: center; background: transparent;
+    font-weight: 700; font-variant-numeric: tabular-nums; -moz-appearance: textfield; appearance: textfield;
+  }
+  .stepper input::-webkit-outer-spin-button,
+  .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .stepper input:focus { outline: none; background: var(--panel-2); }
+
+  /* Players */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--muted);
+    margin: 0 0 12px; padding: 0 2px;
+  }
+  .legend b { color: var(--text); font-variant-numeric: tabular-nums; }
+  #players { display: grid; grid-template-columns: 1fr; gap: 0 14px; }
+  @media (min-width: 780px) { #players { grid-template-columns: 1fr 1fr; } }
+  .card[hidden] { display: none; }
+  .card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .pname {
+    flex: 1; min-width: 0;
+    background: transparent; border: 1px solid transparent; border-radius: 8px;
+    padding: 6px 8px; margin-left: -8px;
+    font: 600 18px var(--serif);
+  }
+  .pname:hover { border-color: var(--line); }
+  .pname:focus { outline: none; border-color: var(--gold); background: var(--panel-2); }
+  .ptotal { text-align: right; line-height: 1; }
+  .ptotal .num { font: 700 28px var(--serif); font-variant-numeric: tabular-nums; }
+  .ptotal small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  .grow {
+    display: grid;
+    grid-template-columns: minmax(54px, 1fr) repeat(5, 40px) 38px;
+    gap: 4px; align-items: center;
+    padding: 5px 0; border-top: 1px solid var(--line);
+  }
+  .elabel { min-width: 0; line-height: 1.15; }
+  .elabel .en { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .elabel .ec { display: block; font-size: 12px; color: var(--muted); }
+  .mult {
+    height: 40px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel-2); font-weight: 600; font-variant-numeric: tabular-nums;
+    color: var(--muted); padding: 0;
+  }
+  .mult:active { transform: scale(0.96); }
+  .mult[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: #1a1409; }
+  .mult.neg[aria-pressed="true"] { background: var(--neg); border-color: var(--neg); color: #1d0c09; }
+  .epts { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .epts.neg { color: var(--neg); }
+  .epts.none { color: var(--line); }
+
+  .adj-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    border-top: 1px solid var(--line); padding-top: 8px; margin-top: 2px;
+  }
+  .adj-row .lbl { line-height: 1.15; }
+  .adj-row .lbl small { display: block; color: var(--muted); font-size: 12px; }
+  .status { font-size: 13px; margin-top: 8px; color: var(--muted); }
+  .status.ok { color: var(--ok); }
+
+  /* Standings */
+  #standings { list-style: none; margin: 0; padding: 0; }
+  #standings li {
+    display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center;
+    padding: 9px 0; border-top: 1px solid var(--line);
+  }
+  #standings li:first-child { border-top: 0; }
+  .rank {
+    width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+    border: 1px solid var(--line); font-weight: 700; font-size: 14px;
+  }
+  li.first .rank { background: var(--gold); border-color: var(--gold); color: #1a1409; }
+  .sname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .sname small { color: var(--neg); font-weight: 400; font-size: 12px; margin-left: 6px; }
+  .sscore { font: 700 20px var(--serif); font-variant-numeric: tabular-nums; }
+  .note {
+    margin: 10px 0 0; padding: 10px 12px; border-radius: 10px;
+    background: var(--gold-soft); border: 1px solid rgba(201, 162, 74, 0.4); font-size: 14px;
+  }
+  .empty { color: var(--muted); margin: 0; }
+
+  .actions { display: flex; justify-content: center; margin: 6px 0 18px; }
+  .btn-reset {
+    border: 1px solid var(--line); background: transparent; border-radius: 10px;
+    padding: 10px 18px; color: var(--muted); min-width: 220px;
+  }
+  .btn-reset.armed { border-color: var(--neg); color: var(--neg); }
+  footer { color: var(--muted); font-size: 12.5px; text-align: center; max-width: 560px; margin: 0 auto; }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <h1>A War of Whispers <span>scorer</span></h1>
+    <div class="chips" id="chips" aria-label="Current scores"></div>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="setup-row">
+      <h2>Players</h2>
+      <div class="seg" id="count" role="group" aria-label="Number of players"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="cities">
+    <h2>Cities controlled <small>by each empire at game end</small></h2>
+    <div id="city-rows"></div>
+    <p class="hint">Tap an empire name to rename it.</p>
+  </section>
+
+  <div class="legend" aria-hidden="true">
+    <span><b>4</b> Devout</span><span><b>3</b> Dutiful</span><span><b>2</b> Affiliated</span><span><b>0</b> Unallied</span><span><b>−1</b> Opposed</span>
+  </div>
+  <section id="players" aria-label="Player loyalties"></section>
+
+  <section class="panel">
+    <h2>Final standings</h2>
+    <ol id="standings"></ol>
+    <p class="empty" id="standings-empty">Enter cities and each player's loyalties to see standings.</p>
+    <p class="note" id="tie" hidden></p>
+  </section>
+
+  <div class="actions">
+    <button class="btn-reset" id="reset" type="button">New game (clear scores)</button>
+  </div>
+
+  <footer>
+    Each loyalty token scores its empire's cities × that slot's multiplier. A player's score is the sum
+    across all five empires, plus adjustments (use those for expansion bounties, exposed-loyalty
+    penalties or variant rules). Names and scores are saved on this device.
+  </footer>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var SLOTS = [
+    { v: 4, name: "Devout" },
+    { v: 3, name: "Dutiful" },
+    { v: 2, name: "Affiliated" },
+    { v: 0, name: "Unallied" },
+    { v: -1, name: "Opposed" }
+  ];
+  var VALID = SLOTS.map(function (s) { return s.v; });
+  var MAX_PLAYERS = 5, MIN_PLAYERS = 2, N_EMPIRES = 5;
+  var KEY = "awow-scorer-v1";
+  var DEFAULT_EMPIRES = ["Wolf", "Moose", "Tusk", "Lion", "Horse"];
+
+  function defaults() {
+    var players = [];
+    for (var i = 0; i < MAX_PLAYERS; i++) {
+      players.push({ name: "Player " + (i + 1), loyalty: emptyLoyalty(), adj: 0 });
+    }
+    return {
+      count: 4,
+      empires: DEFAULT_EMPIRES.map(function (n) { return { name: n, cities: 0 }; }),
+      players: players
+    };
+  }
+  function emptyLoyalty() { var a = []; for (var i = 0; i < N_EMPIRES; i++) a.push(null); return a; }
+  function toInt(x, fallback) { var n = parseInt(x, 10); return isFinite(n) ? n : fallback; }
+  function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+
+  function load() {
+    var s = defaults();
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return s;
+      var d = JSON.parse(raw);
+      if (d && typeof d === "object") {
+        var c = toInt(d.count, s.count);
+        if (c >= MIN_PLAYERS && c <= MAX_PLAYERS) s.count = c;
+        if (Array.isArray(d.empires)) {
+          for (var i = 0; i < N_EMPIRES; i++) {
+            var e = d.empires[i];
+            if (!e) continue;
+            if (typeof e.name === "string") s.empires[i].name = e.name.slice(0, 16);
+            s.empires[i].cities = clamp(toInt(e.cities, 0), 0, 99);
+          }
+        }
+        if (Array.isArray(d.players)) {
+          for (var p = 0; p < MAX_PLAYERS; p++) {
+            var pl = d.players[p];
+            if (!pl) continue;
+            if (typeof pl.name === "string") s.players[p].name = pl.name.slice(0, 24);
+            s.players[p].adj = clamp(toInt(pl.adj, 0), -99, 99);
+            if (Array.isArray(pl.loyalty)) {
+              var used = {};
+              for (var k = 0; k < N_EMPIRES; k++) {
+                var v = pl.loyalty[k];
+                if (VALID.indexOf(v) !== -1 && !used[v]) { s.players[p].loyalty[k] = v; used[v] = true; }
+              }
+            }
+          }
+        }
+      }
+    } catch (err) { /* storage unavailable or corrupt: start fresh */ }
+    return s;
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (err) { /* ignore */ }
+  }
+
+  var state = load();
+
+  // ---------- helpers ----------
+  function el(tag, props) {
+    var node = document.createElement(tag);
+    if (props) for (var k in props) {
+      if (k === "text") node.textContent = props[k];
+      else if (k === "class") node.className = props[k];
+      else if (k.indexOf("on") === 0) node.addEventListener(k.slice(2), props[k]);
+      else node.setAttribute(k, props[k]);
+    }
+    for (var i = 2; i < arguments.length; i++) if (arguments[i]) node.appendChild(arguments[i]);
+    return node;
+  }
+  function fmt(n) { return n < 0 ? "−" + Math.abs(n) : String(n); }
+  function empireName(i) { return state.empires[i].name.trim() || ("Empire " + (i + 1)); }
+  function playerName(p) { return state.players[p].name.trim() || ("Player " + (p + 1)); }
+  function setCount(p) { return state.players[p].loyalty.filter(function (v) { return v !== null; }).length; }
+  function score(p) {
+    var pl = state.players[p], total = pl.adj;
+    for (var i = 0; i < N_EMPIRES; i++) if (pl.loyalty[i] !== null) total += pl.loyalty[i] * state.empires[i].cities;
+    return total;
+  }
+  function started() {
+    if (state.empires.some(function (e) { return e.cities > 0; })) return true;
+    for (var p = 0; p < state.count; p++) if (setCount(p) > 0 || state.players[p].adj !== 0) return true;
+    return false;
+  }
+
+  // Each player holds exactly one token per slot, so picking a slot that another
+  // empire already holds swaps the two (mirrors swapping tokens on the board).
+  function pick(p, e, v) {
+    var L = state.players[p].loyalty, old = L[e];
+    if (old === v) { L[e] = null; }
+    else {
+      var other = L.indexOf(v);
+      if (other !== -1 && other !== e) L[other] = old;
+      L[e] = v;
+    }
+    update();
+  }
+
+  function stepper(label, get, set, min, max) {
+    var input = el("input", { type: "number", inputmode: "numeric", "aria-label": label, min: min, max: max });
+    input.value = get();
+    function commit(n) { set(clamp(n, min, max)); input.value = get(); update(); }
+    input.addEventListener("input", function () {
+      var n = toInt(input.value, null);
+      if (n === null) return;
+      set(clamp(n, min, max)); update();
+    });
+    input.addEventListener("change", function () { commit(toInt(input.value, 0)); });
+    input.addEventListener("focus", function () { input.select(); });
+    var minus = el("button", { type: "button", "aria-label": "Decrease " + label, text: "−", onclick: function () { commit(get() - 1); } });
+    var plus = el("button", { type: "button", "aria-label": "Increase " + label, text: "+", onclick: function () { commit(get() + 1); } });
+    var wrap = el("div", { class: "stepper" }, minus, input, plus);
+    wrap.sync = function () { if (document.activeElement !== input) input.value = get(); };
+    return wrap;
+  }
+
+  // ---------- build ----------
+  var refs = { countBtns: [], cityLabels: [], citySteppers: [], cards: [] };
+
+  (function buildCount() {
+    var seg = document.getElementById("count");
+    for (var n = MIN_PLAYERS; n <= MAX_PLAYERS; n++) (function (n) {
+      var b = el("button", { type: "button", text: String(n), "aria-pressed": "false", onclick: function () { state.count = n; update(); } });
+      refs.countBtns.push({ n: n, b: b });
+      seg.appendChild(b);
+    })(n);
+  })();
+
+  (function buildCities() {
+    var wrap = document.getElementById("city-rows");
+    state.empires.forEach(function (emp, i) {
+      var name = el("input", { class: "ename-input", type: "text", maxlength: "16", "aria-label": "Empire " + (i + 1) + " name", autocomplete: "off" });
+      name.value = emp.name;
+      name.addEventListener("input", function () { state.empires[i].name = name.value; update(); });
+      name.addEventListener("blur", function () {
+        if (!name.value.trim()) { state.empires[i].name = DEFAULT_EMPIRES[i]; name.value = DEFAULT_EMPIRES[i]; update(); }
+      });
+      var st = stepper("cities for empire " + (i + 1),
+        function () { return state.empires[i].cities; },
+        function (n) { state.empires[i].cities = n; }, 0, 99);
+      refs.cityLabels.push(name);
+      refs.citySteppers.push(st);
+      wrap.appendChild(el("div", { class: "city-row" }, name, st));
+    });
+  })();
+
+  (function buildPlayers() {
+    var wrap = document.getElementById("players");
+    for (var p = 0; p < MAX_PLAYERS; p++) (function (p) {
+      var name = el("input", { class: "pname", type: "text", maxlength: "24", "aria-label": "Player " + (p + 1) + " name", autocomplete: "off" });
+      name.value = state.players[p].name;
+      name.addEventListener("input", function () { state.players[p].name = name.value; update(); });
+      name.addEventListener("focus", function () { name.select(); });
+      var totalNum = el("span", { class: "num", text: "0" });
+      var head = el("div", { class: "card-head" }, name, el("div", { class: "ptotal" }, totalNum, el("small", { text: "points" })));
+
+      var rows = [];
+      var body = el("div");
+      for (var e = 0; e < N_EMPIRES; e++) (function (e) {
+        var en = el("span", { class: "en" }), ec = el("span", { class: "ec" });
+        var row = el("div", { class: "grow" }, el("div", { class: "elabel" }, en, ec));
+        var btns = SLOTS.map(function (s) {
+          var b = el("button", {
+            type: "button", class: "mult" + (s.v < 0 ? " neg" : ""), text: fmt(s.v),
+            "aria-pressed": "false", title: s.name + " ×" + fmt(s.v),
+            onclick: function () { pick(p, e, s.v); }
+          });
+          row.appendChild(b);
+          return b;
+        });
+        var pts = el("span", { class: "epts none", text: "—" });
+        row.appendChild(pts);
+        body.appendChild(row);
+        rows.push({ en: en, ec: ec, btns: btns, pts: pts });
+      })(e);
+
+      var adj = stepper("adjustment for player " + (p + 1),
+        function () { return state.players[p].adj; },
+        function (n) { state.players[p].adj = n; }, -99, 99);
+      var adjRow = el("div", { class: "adj-row" },
+        el("div", { class: "lbl" }, el("span", { text: "Adjustments" }), el("small", { text: "bounties, penalties, variants" })),
+        adj);
+      var status = el("div", { class: "status" });
+
+      var card = el("article", { class: "card", id: "player-" + (p + 1) }, head, body, adjRow, status);
+      wrap.appendChild(card);
+      refs.cards.push({ card: card, name: name, totalNum: totalNum, rows: rows, adj: adj, status: status });
+    })(p);
+  })();
+
+  // ---------- update ----------
+  var chipsEl = document.getElementById("chips");
+  var standingsEl = document.getElementById("standings");
+  var emptyEl = document.getElementById("standings-empty");
+  var tieEl = document.getElementById("tie");
+
+  function update() {
+    refs.countBtns.forEach(function (o) { o.b.setAttribute("aria-pressed", String(o.n === state.count)); });
+    refs.citySteppers.forEach(function (s) { s.sync(); });
+
+    var totals = [];
+    refs.cards.forEach(function (c, p) {
+      var active = p < state.count;
+      c.card.hidden = !active;
+      var pl = state.players[p];
+      c.rows.forEach(function (r, e) {
+        var cities = state.empires[e].cities;
+        r.en.textContent = empireName(e);
+        r.ec.textContent = cities + (cities === 1 ? " city" : " cities");
+        var v = pl.loyalty[e];
+        r.btns.forEach(function (b, i) { b.setAttribute("aria-pressed", String(SLOTS[i].v === v)); });
+        if (v === null) { r.pts.textContent = "—"; r.pts.className = "epts none"; }
+        else {
+          var pts = v * cities;
+          r.pts.textContent = fmt(pts);
+          r.pts.className = "epts" + (pts < 0 ? " neg" : "");
+        }
+      });
+      c.adj.sync();
+      var t = score(p);
+      c.totalNum.textContent = fmt(t);
+      var n = setCount(p);
+      c.status.textContent = n === N_EMPIRES ? "All 5 loyalties set" : n + " of 5 loyalties set";
+      c.status.className = "status" + (n === N_EMPIRES ? " ok" : "");
+      if (active) totals.push({ p: p, name: playerName(p), score: t, complete: n === N_EMPIRES });
+    });
+
+    var isStarted = started();
+    var max = Math.max.apply(null, totals.map(function (t) { return t.score; }));
+    var leaders = isStarted ? totals.filter(function (t) { return t.score === max; }) : [];
+
+    // header chips
+    chipsEl.textContent = "";
+    totals.forEach(function (t) {
+      var chip = el("button", {
+        type: "button", class: "chip" + (leaders.indexOf(t) !== -1 ? " lead" : ""),
+        onclick: function () { scrollToCard(t.p); }
+      }, el("span", { class: "cn", text: t.name }), el("span", { class: "cs", text: fmt(t.score) }));
+      chipsEl.appendChild(chip);
+    });
+
+    // standings
+    standingsEl.textContent = "";
+    emptyEl.hidden = isStarted;
+    if (isStarted) {
+      var sorted = totals.slice().sort(function (a, b) { return b.score - a.score || a.p - b.p; });
+      sorted.forEach(function (t) {
+        var rank = 1 + totals.filter(function (o) { return o.score > t.score; }).length;
+        var nameEl = el("span", { class: "sname", text: t.name });
+        if (!t.complete) nameEl.appendChild(el("small", { text: "incomplete" }));
+        standingsEl.appendChild(el("li", { class: rank === 1 ? "first" : "" },
+          el("span", { class: "rank", text: String(rank) }), nameEl,
+          el("span", { class: "sscore", text: fmt(t.score) })));
+      });
+    }
+    if (leaders.length > 1) {
+      var names = leaders.map(function (l) { return l.name; });
+      var list = names.length === 2 ? names.join(" and ") : names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+      tieEl.textContent = "Tied for first: " + list + ". Rulebook tiebreaker: the player who swapped loyalty the fewest times wins; if still tied, the most empire cards in hand.";
+      tieEl.hidden = false;
+    } else {
+      tieEl.hidden = true;
+    }
+
+    save();
+  }
+
+  function scrollToCard(p) {
+    var card = refs.cards[p].card;
+    var headerH = document.querySelector(".top").offsetHeight;
+    var y = card.getBoundingClientRect().top + window.pageYOffset - headerH - 10;
+    window.scrollTo({ top: y, behavior: "smooth" });
+  }
+
+  // New game: two taps, keeps player and empire names.
+  var resetBtn = document.getElementById("reset"), resetTimer = null;
+  var RESET_LABEL = resetBtn.textContent;
+  resetBtn.addEventListener("click", function () {
+    if (!resetBtn.classList.contains("armed")) {
+      resetBtn.classList.add("armed");
+      resetBtn.textContent = "Tap again to clear all scores";
+      resetTimer = setTimeout(disarm, 3500);
+      return;
+    }
+    clearTimeout(resetTimer);
+    state.empires.forEach(function (e) { e.cities = 0; });
+    state.players.forEach(function (p) { p.loyalty = emptyLoyalty(); p.adj = 0; });
+    disarm();
+    update();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  function disarm() { resetBtn.classList.remove("armed"); resetBtn.textContent = RESET_LABEL; }
+
+  update();
+})();
+</script>
+</body>
+</html>
